@@ -1,0 +1,169 @@
+{
+  "info": {
+    "name": "CVSync - AI Resume Screener (No Auth)",
+    "description": "No login required. Create job profiles, upload resumes, get AI grading instantly.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/health",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "2. Create Job Profile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Senior Python Engineer\",\n  \"title\": \"Senior Backend Engineer\",\n  \"department\": \"Engineering\",\n  \"location\": \"Bangalore, India\",\n  \"experience_min_years\": 5,\n  \"experience_max_years\": 10,\n  \"salary_range\": \"₹25-35 LPA\",\n  \"jd_text\": \"We are looking for a Python expert with FastAPI, Docker, AWS, PostgreSQL, and 5+ years of experience. Must have led backend projects and worked in Agile teams.\",\n  \"skills_required\": [\"Python\", \"FastAPI\", \"Docker\", \"AWS\", \"PostgreSQL\", \"Git\", \"REST API\"]\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/profiles",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["profiles"]
+        }
+      }
+    },
+    {
+      "name": "3. List All Job Profiles",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/profiles",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["profiles"]
+        }
+      }
+    },
+    {
+      "name": "4. Get Job Profile by ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/profiles/1",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["profiles", "1"]
+        }
+      }
+    },
+    {
+      "name": "5. Upload Resume (AI Analysis)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "profile_name",
+              "value": "Senior Python Engineer",
+              "type": "text"
+            },
+            {
+              "key": "model",
+              "value": "llama3-70b-8192",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/upload-resume",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["upload-resume"]
+        }
+      }
+    },
+    {
+      "name": "6. Get Candidates (All)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/profiles/1/candidates",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["profiles", "1", "candidates"]
+        }
+      }
+    },
+    {
+      "name": "7. Get Candidates (Score ≥ 70)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/profiles/1/candidates?threshold=70",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["profiles", "1", "candidates"],
+          "query": [
+            {
+              "key": "threshold",
+              "value": "70"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-save resume_id from upload response",
+          "if (pm.response.code === 200 && pm.request.url.getPath().includes('upload-resume')) {",
+          "  const json = pm.response.json();",
+          "  if (json.resume_id) {",
+          "    pm.environment.set('last_resume_id', json.resume_id);",
+          "    console.log('Saved resume_id:', json.resume_id);",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ]
+}
