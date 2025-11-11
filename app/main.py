@@ -26,7 +26,7 @@ logger = logging.getLogger("api")
 app = FastAPI(
     title="CVSync - AI Resume Screener",
     description="No Auth | Job Profiles | Resume Upload | LLM Grading",
-    version="3.0.0"
+    version="3.0.1"
 )
 
 @app.on_event("startup")
@@ -34,13 +34,14 @@ def on_startup():
     init_db()
     logger.info("CVSync started. No authentication required.")
 
+
 # === JOB PROFILES ===
 @app.post("/profiles", response_model=JobProfileOut)
 def create_job_profile(profile: JobProfileCreate, session: Session = Depends(get_session)):
     if session.exec(select(JobProfile).where(JobProfile.name == profile.name)).first():
         raise HTTPException(status_code=400, detail=PROFILE_EXISTS)
 
-    # FIX: Convert list → JSON string BEFORE unpacking
+    # Convert list → JSON string before saving
     data = profile.dict()
     data["skills_required"] = json_list_to_str(data.get("skills_required", []))
 
@@ -48,13 +49,21 @@ def create_job_profile(profile: JobProfileCreate, session: Session = Depends(get
     session.add(db_profile)
     session.commit()
     session.refresh(db_profile)
+
+    # ✅ Convert JSON string → list before returning
+    db_profile.skills_required = str_to_json_list(db_profile.skills_required)
+
     logger.info(f"Profile created: {profile.name}")
     return db_profile
 
 
 @app.get("/profiles", response_model=List[JobProfileOut])
 def list_job_profiles(session: Session = Depends(get_session)):
-    return session.exec(select(JobProfile)).all()
+    profiles = session.exec(select(JobProfile)).all()
+    # ✅ Convert all skills_required to lists
+    for p in profiles:
+        p.skills_required = str_to_json_list(p.skills_required)
+    return profiles
 
 
 @app.get("/profiles/{profile_id}", response_model=JobProfileOut)
@@ -62,6 +71,9 @@ def get_job_profile(profile_id: int, session: Session = Depends(get_session)):
     profile = session.get(JobProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail=PROFILE_NOT_FOUND)
+
+    # ✅ Convert JSON string → list
+    profile.skills_required = str_to_json_list(profile.skills_required)
     return profile
 
 
@@ -97,6 +109,7 @@ async def upload_and_analyze_resume(
     session.commit()
     session.refresh(candidate)
 
+    # ✅ Safely convert stored JSON string → list
     skills = ", ".join(str_to_json_list(profile.skills_required))
     jd = f"""
 Title: {profile.title}
