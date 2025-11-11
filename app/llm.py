@@ -6,13 +6,13 @@ from config import get_settings
 from messages import LLM_ERROR
 
 settings = get_settings()
-client = Groq(api_key=settings.groq_api_key)  # Export this
+client = Groq(api_key=settings.groq_api_key)
 logger = logging.getLogger("llm")
 
 PROMPT_TEMPLATE = """
-You are an expert HR recruiter. Compare the JOB DESCRIPTION and CANDIDATE RESUME.
+You are an expert HR. Compare JD and RESUME.
 
-Return ONLY valid JSON with:
+Return ONLY JSON:
 {
   "match_score": float (0-100),
   "recommendation": str ("Strong Hire" | "Good Fit" | "Needs Review" | "Not Suitable"),
@@ -20,12 +20,6 @@ Return ONLY valid JSON with:
   "gaps": [str],
   "suggestions": [str]
 }
-
-RULES:
-- Normalize skills (python3 → Python)
-- Be critical but fair
-- Use bullet-style strings
-- JD and Resume separated by ---
 
 JD:
 {jd}

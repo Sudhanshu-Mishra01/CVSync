@@ -1,14 +1,14 @@
 # main.py
 import logging
 from typing import List, Optional
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends
 from sqlmodel import Session, select
 from datetime import datetime
-from fastapi import Depends
+
 from database import get_session, init_db
 from models import JobProfile, CandidateResume, AnalysisResult
 from schemas import (
-    JobProfileCreate, JobProfileOut, JobProfileOut, 
+    JobProfileCreate, JobProfileOut,
     ResumeUploadResponse, AnalysisResultOut
 )
 from utils import extract_text_from_pdf, extract_candidate_info, json_list_to_str, str_to_json_list
@@ -25,7 +25,7 @@ logger = logging.getLogger("api")
 # === FASTAPI APP ===
 app = FastAPI(
     title="CVSync - AI Resume Screener",
-    description="No Auth | Job Profiles | Resume Upload | LLM Grading | Candidate Dashboard",
+    description="No Auth | Job Profiles | Resume Upload | LLM Grading",
     version="3.0.0"
 )
 
@@ -40,10 +40,11 @@ def create_job_profile(profile: JobProfileCreate, session: Session = Depends(get
     if session.exec(select(JobProfile).where(JobProfile.name == profile.name)).first():
         raise HTTPException(status_code=400, detail=PROFILE_EXISTS)
 
-    db_profile = JobProfile(
-        **profile.dict(),
-        skills_required=json_list_to_str(profile.skills_required)
-    )
+    # FIX: Convert list → JSON string BEFORE unpacking
+    data = profile.dict()
+    data["skills_required"] = json_list_to_str(data.get("skills_required", []))
+
+    db_profile = JobProfile(**data)
     session.add(db_profile)
     session.commit()
     session.refresh(db_profile)
@@ -75,20 +76,15 @@ async def upload_and_analyze_resume(
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF resumes allowed")
 
-    # Find profile
     profile = session.exec(
         select(JobProfile).where(JobProfile.name == profile_name)
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail=PROFILE_NOT_FOUND)
 
-    # 1. Extract text
     resume_text = extract_text_from_pdf(file)
-
-    # 2. Extract candidate info
     meta = extract_candidate_info(resume_text)
 
-    # 3. Save resume
     candidate = CandidateResume(
         filename=file.filename,
         resume_text=resume_text,
@@ -101,7 +97,6 @@ async def upload_and_analyze_resume(
     session.commit()
     session.refresh(candidate)
 
-    # 4. Build JD
     skills = ", ".join(str_to_json_list(profile.skills_required))
     jd = f"""
 Title: {profile.title}
@@ -113,14 +108,12 @@ Full JD:
 {profile.jd_text}
     """.strip()
 
-    # 5. LLM Analysis
     try:
         result = analyze_resume(jd, resume_text, model)
     except Exception as e:
         logger.error(f"LLM failed: {e}")
         raise HTTPException(status_code=500, detail=LLM_ERROR)
 
-    # 6. Save result
     analysis = AnalysisResult(
         resume_id=candidate.id,
         match_score=result["match_score"],

@@ -5,11 +5,10 @@ import re
 import PyPDF2
 from fastapi import UploadFile, HTTPException
 from messages import PDF_PARSE_ERROR
-from llm import client  # Use the same Groq client
+from llm import client  # Reuse Groq client
 
 logger = logging.getLogger("utils")
 
-# --- PDF TEXT EXTRACTION ---
 def extract_text_from_pdf(file: UploadFile) -> str:
     try:
         reader = PyPDF2.PdfReader(file.file)
@@ -21,16 +20,13 @@ def extract_text_from_pdf(file: UploadFile) -> str:
         raise HTTPException(status_code=400, detail=PDF_PARSE_ERROR)
 
 
-# --- CANDIDATE INFO EXTRACTION (NEW) ---
 EXTRACT_PROMPT = """
-You are a resume parser. Extract ONLY:
+You are a resume parser. Return ONLY JSON:
 {
-  "candidate_name": str (full name),
-  "candidate_email": str (email),
-  "total_experience_years": float (total years, e.g. 5.5, 0 if none)
+  "candidate_name": str or null,
+  "candidate_email": str or null,
+  "total_experience_years": float or null
 }
-If not found, use null.
-
 RESUME:
 {resume}
 """
@@ -46,30 +42,29 @@ def extract_candidate_info(resume_text: str) -> dict:
             response_format={"type": "json_object"}
         )
         data = json.loads(response.choices[0].message.content)
-        logger.info("Candidate info extracted via LLM")
         return {
             "candidate_name": data.get("candidate_name"),
             "candidate_email": data.get("candidate_email"),
             "total_experience_years": data.get("total_experience_years")
         }
     except Exception as e:
-        logger.warning(f"LLM extraction failed, using regex: {e}")
-        # Fallback: regex
-        name_match = re.search(r"([A-Z][a-z]+(?:\s[A-Z][a-z]+){1,3})", resume_text[:1000])
-        email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", resume_text)
+        logger.warning(f"LLM parse failed: {e}")
+        name = re.search(r"([A-Z][a-z]+(?:\s[A-Z][a-z]+){1,3})", resume_text[:1000])
+        email = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", resume_text)
         return {
-            "candidate_name": name_match.group(0).strip() if name_match else None,
-            "candidate_email": email_match.group(0) if email_match else None,
+            "candidate_name": name.group(0).strip() if name else None,
+            "candidate_email": email.group(0) if email else None,
             "total_experience_years": None
         }
 
 
-# --- JSON HELPERS ---
 def json_list_to_str(data: list) -> str:
     return json.dumps(data or [])
 
 def str_to_json_list(data: str) -> list:
+    if not data or data in ("null", '""'):
+        return []
     try:
-        return json.loads(data) if data else []
+        return json.loads(data)
     except:
         return []

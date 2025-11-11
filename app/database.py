@@ -1,12 +1,15 @@
+# database.py
 from sqlmodel import SQLModel, create_engine, Session
-from config import get_settings
 
-settings = get_settings()
-engine = create_engine(settings.database_url, echo=False)
+# Hardcoded SQLite path (no config needed)
+DATABASE_URL = "sqlite:///./recruitment.db"
 
-def get_session() -> Session:
+engine = create_engine(DATABASE_URL, echo=False)
+
+def get_session():
     with Session(engine) as session:
         yield session
 
 def init_db():
     SQLModel.metadata.create_all(engine)
+    print("Database initialized at recruitment.db")
